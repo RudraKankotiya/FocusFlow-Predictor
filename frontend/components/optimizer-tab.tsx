@@ -34,57 +34,66 @@ export function OptimizerTab() {
     setResults([])
 
     try {
-      const phoneRange: number[] = []
-      for (let p = 0.5; p <= maxPhoneHours[0]; p += 0.5) {
-        phoneRange.push(p)
-      }
-
-      const sleepRange: number[] = []
-      for (let s = 6.0; s <= 9.0; s += 0.5) {
-        sleepRange.push(s)
-      }
-
+      // Generate DIVERSE combos within user limits with 0.25h steps
       const combinations: { phone: number; sleep: number }[] = []
-      for (const p of phoneRange) {
-        for (const s of sleepRange) {
-          combinations.push({ phone: p, sleep: s })
+      const phoneStep = 0.25
+      const sleepStep = 0.25
+
+      for (let p = 0.25; p <= maxPhoneHours[0]; p += phoneStep) {
+        for (let s = 6.0; s <= targetSleepHours[0]; s += sleepStep) {
+          combinations.push({
+            phone: Math.round(p * 4) / 4,
+            sleep: Math.round(s * 4) / 4
+          })
         }
       }
 
-      const pool = combinations.map(async ({ phone, sleep }) => {
-        const response = await fetch("/api/predict", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            phone_hours: phone,
-            sleep_hours: sleep,
-            notifications_per_day: null,
-            work_hours_per_day: null,
-            historical_mean: null,
-            optimistic_mode: true
+      console.log(`🔍 Testing ${combinations.length} combinations...`)
+
+      const allResults: OptimizeResult[] = []
+      // Batch API calls (5 at a time) to avoid rate limits and browser throttling
+      for (let i = 0; i < combinations.length; i += 5) {
+        const batch = combinations.slice(i, i + 5)
+        const batchPromises = batch.map(combo =>
+          fetch("/api/predict", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              phone_hours: combo.phone,
+              sleep_hours: combo.sleep,
+              notifications_per_day: null,
+              work_hours_per_day: null,
+              historical_mean: null,
+            })
+          }).then(async r => {
+            if (!r.ok) throw new Error("API failed")
+            return r.json()
           })
+        )
+
+        const batchResults = await Promise.allSettled(batchPromises)
+        batchResults.forEach((result, idx) => {
+          if (result.status === "fulfilled") {
+            allResults.push({
+              phone: batch[idx].phone,
+              sleep: batch[idx].sleep,
+              score: result.value.predicted_score
+            })
+          }
         })
+      }
 
-        if (!response.ok) {
-          throw new Error("API request failed")
-        }
-
-        const data: PredictResponse = await response.json()
-        return {
-          phone,
-          sleep,
-          score: data.predicted_score
-        }
-      })
-
-      const allResults = await Promise.all(pool)
-
-      // Sort by score descending and keep top 5
-      const sortedResults = allResults
+      // Sort by score DESC + take top 5 UNIQUE combos
+      const uniqueTop5 = allResults
         .sort((a, b) => b.score - a.score)
+        .filter((item, index, self) =>
+          index === self.findIndex(t =>
+            t.phone === item.phone && t.sleep === item.sleep
+          )
+        )
         .slice(0, 5)
 
-      setResults(sortedResults)
+      setResults(uniqueTop5)
     } catch (err) {
       console.error("Optimization error:", err)
       setError("Unable to complete optimization. Check your backend connection.")
