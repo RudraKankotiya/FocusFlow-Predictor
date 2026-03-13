@@ -59,7 +59,8 @@ def predict_productive_score(
     phone_hours,
     sleep_hours=None,
     notifications_per_day=None,
-    work_hours_per_day=None
+    work_hours_per_day=None,
+    optimistic_mode=False  # Kept signature for compatibility, logic removed
 ):
     """
     Predicts the productive score without artificial scaling.
@@ -149,6 +150,7 @@ class PredictRequest(BaseModel):
     notifications_per_day: Optional[float] = None
     work_hours_per_day: Optional[float] = None
     historical_mean: Optional[float] = None
+    optimistic_mode: Optional[bool] = False
 
 class PredictResponse(BaseModel):
     predicted_score: float
