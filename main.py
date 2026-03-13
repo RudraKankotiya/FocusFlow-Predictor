@@ -59,11 +59,11 @@ def predict_productive_score(
     phone_hours,
     sleep_hours=None,
     notifications_per_day=None,
-    work_hours_per_day=None,
-    optimistic_mode=False
+    work_hours_per_day=None
 ):
     """
-    Predicts and scales the productive score to [0, 10].
+    Predicts the productive score without artificial scaling.
+    Clips to typical dataset range [1.5, 8.5].
     """
     model, feature_names, feature_means = load_productivity_model_real()
 
@@ -75,6 +75,11 @@ def predict_productive_score(
         'work_hours_per_day': work_hours_per_day
     }
 
+    # Debug Log Inputs
+    print(f"🔍 INPUT: phone={phone_hours}, sleep={sleep_hours}")
+    print(f"🔍 FEATURES: {feature_names}")
+    print(f"🔍 MEANS: {feature_means}")
+
     # Build the feature vector
     feature_vector = []
     for feature in feature_names:
@@ -85,23 +90,17 @@ def predict_productive_score(
             feature_vector.append(feature_means.get(feature, 0.0))
 
     X_predict = np.array(feature_vector).reshape(1, -1)
+    
+    # NO SCALING. Use raw model predictions directly
     raw_prediction = model.predict(X_predict)[0]
+    print(f"🔍 RAW MODEL PRED: {raw_prediction}")
 
-    # 1. Scale from original model range (0-5) to universal range (0-10)
-    # The user noted the model was trained on 0-5 data, but UI wants 0-10.
-    # We ignore the dataset's current min/max for scaling the prediction itself 
-    # to avoid double-compression if the dataset already contains 0-10 scores.
-    model_min = 0.0
-    model_max = 5.0 
+    # Clip to realistic 0-10 range based on training data
+    dataset_min = 1.5  # typical min
+    dataset_max = 8.5  # typical max
+    final_prediction = np.clip(raw_prediction, dataset_min, dataset_max)
     
-    scaled_prediction = (raw_prediction - model_min) / (model_max - model_min) * 10
-
-    # 2. Apply Optimistic Mode boost
-    if optimistic_mode:
-        scaled_prediction = scaled_prediction * 1.3
-    
-    # Clip the results to [0, 10]
-    final_prediction = np.clip(scaled_prediction, 0, 10)
+    print(f"🔍 RAW->{raw_prediction} -> FINAL->{final_prediction}")
 
     return float(final_prediction)
 
@@ -125,7 +124,7 @@ def generate_productivity_message_score(predicted_score, historical_mean=None):
     
     message = f"Score: {predicted_score:.1f}/10 - {label}"
     if historical_mean:
-        prev_scaled = historical_mean # Assume user provides already scaled mean or we scale if needed
+        prev_scaled = historical_mean
         if predicted_score >= prev_scaled * 1.1:
             message += " ⭐ Peak Performance!"
             
@@ -150,7 +149,6 @@ class PredictRequest(BaseModel):
     notifications_per_day: Optional[float] = None
     work_hours_per_day: Optional[float] = None
     historical_mean: Optional[float] = None
-    optimistic_mode: bool = False
 
 class PredictResponse(BaseModel):
     predicted_score: float
@@ -164,6 +162,29 @@ async def startup_event():
         load_productivity_model_real()
     except Exception as e:
         print(f"FAILED TO LOAD MODEL ON STARTUP: {e}")
+
+@app.get("/debug")
+async def debug():
+    _, feature_names, feature_means = load_productivity_model_real()
+    
+    # Try to get dataset stats from file if possible for the response
+    dataset_min = "N/A"
+    dataset_max = "N/A"
+    try:
+        df = pd.read_csv('productivity_data_real.csv')
+        dataset_min = float(df['productive_score'].min())
+        dataset_max = float(df['productive_score'].max())
+    except:
+        pass
+
+    return {
+        "feature_names": feature_names,
+        "feature_means": feature_means,
+        "dataset_stats": {
+            "min": dataset_min,
+            "max": dataset_max
+        }
+    }
 
 class DatasetStats(BaseModel):
     avgPhoneHours: float
@@ -252,6 +273,7 @@ async def predict(request: PredictRequest):
             message=message
         )
     except Exception as e:
+        print(f"🔍 PREDICTION ERROR: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
 if __name__ == "__main__":
