@@ -141,6 +141,76 @@ async def startup_event():
     except Exception as e:
         print(f"FAILED TO LOAD MODEL ON STARTUP: {e}")
 
+class DatasetStats(BaseModel):
+    avgPhoneHours: float
+    avgSleepHours: float
+    avgProductivity: float
+    totalRecords: int
+
+class DatasetCorrelations(BaseModel):
+    phoneVsScore: float
+    sleepVsScore: float
+    phoneVsSleep: float
+
+class DataRow(BaseModel):
+    phone_hours: float
+    sleep_hours: float
+    productive_score: float
+
+class DatasetResponse(BaseModel):
+    stats: DatasetStats
+    correlations: DatasetCorrelations
+    data: list[DataRow]
+
+@app.get("/dataset", response_model=DatasetResponse)
+async def get_dataset():
+    try:
+        df = pd.read_csv('productivity_data_real.csv')
+        
+        # Calculate stats
+        avg_phone = float(df['phone_hours'].mean())
+        # Use sleep_hours if it exists, otherwise 0
+        avg_sleep = float(df['sleep_hours'].mean()) if 'sleep_hours' in df.columns else 0.0
+        avg_productivity = float(df['productive_score'].mean())
+        total_records = len(df)
+        
+        # Calculate correlations
+        # We need to handle potential missing columns gracefully
+        phone_vs_score = float(df['phone_hours'].corr(df['productive_score']))
+        
+        sleep_vs_score = 0.0
+        phone_vs_sleep = 0.0
+        if 'sleep_hours' in df.columns:
+            sleep_vs_score = float(df['sleep_hours'].corr(df['productive_score']))
+            phone_vs_sleep = float(df['phone_hours'].corr(df['sleep_hours']))
+
+        # Prepare preview data (first 10 rows)
+        preview_data = []
+        for _, row in df.head(10).iterrows():
+            preview_data.append(DataRow(
+                phone_hours=float(row['phone_hours']),
+                sleep_hours=float(row.get('sleep_hours', 0.0)),
+                productive_score=float(row['productive_score'])
+            ))
+
+        return DatasetResponse(
+            stats=DatasetStats(
+                avgPhoneHours=round(avg_phone, 2),
+                avgSleepHours=round(avg_sleep, 2),
+                avgProductivity=round(avg_productivity, 2),
+                totalRecords=total_records
+            ),
+            correlations=DatasetCorrelations(
+                phoneVsScore=round(phone_vs_score, 2),
+                sleepVsScore=round(sleep_vs_score, 2),
+                phoneVsSleep=round(phone_vs_sleep, 2)
+            ),
+            data=preview_data
+        )
+    except Exception as e:
+        print(f"Error fetching dataset stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/predict", response_model=PredictResponse)
 async def predict(request: PredictRequest):
     try:

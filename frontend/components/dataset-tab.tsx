@@ -46,11 +46,7 @@ export function DatasetTab() {
   useEffect(() => {
     const fetchDataset = async () => {
       try {
-        const response = await fetch("https://web-production-098d6.up.railway.app/predict", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "getDataset" })
-        })
+        const response = await fetch("https://web-production-098d6.up.railway.app/dataset")
         if (!response.ok) throw new Error("Failed to fetch dataset")
         const data = await response.json()
         setDataset(data)
@@ -358,7 +354,7 @@ export function DatasetTab() {
                       <TableCell className="text-foreground text-xs font-medium">{row.sleep_hours}h</TableCell>
                       <TableCell className="text-right">
                         <span className={`text-sm font-bold ${row.productive_score >= 7.5 ? "text-emerald-400" :
-                            row.productive_score >= 5 ? "text-amber-400" : "text-red-400"
+                          row.productive_score >= 5 ? "text-amber-400" : "text-red-400"
                           }`}>
                           {row.productive_score.toFixed(1)}
                         </span>
