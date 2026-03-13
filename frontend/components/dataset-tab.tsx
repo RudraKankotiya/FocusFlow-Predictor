@@ -174,9 +174,7 @@ export function DatasetTab() {
     )
   }
 
-  if (!dataset) return null
-
-  const metrics = [
+  const metricsData = dataset ? [
     {
       icon: Smartphone,
       label: "Avg Phone Hours",
@@ -201,7 +199,7 @@ export function DatasetTab() {
       value: dataset.stats.totalRecords.toString(),
       color: "from-pink-500 to-rose-500"
     },
-  ]
+  ] : []
 
   return (
     <div className="space-y-8 pb-12">
@@ -243,130 +241,139 @@ export function DatasetTab() {
         )}
       </div>
 
-      {/* Metrics Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {metrics.map((metric, idx) => (
-          <Card key={idx} className="glass border-border">
-            <CardContent className="pt-6">
-              <div className="flex flex-col items-center text-center space-y-3">
-                <div className={`p-3 rounded-xl bg-gradient-to-br ${metric.color}`}>
-                  <metric.icon className="w-5 h-5 text-white" />
+      {dataset ? (
+        <>
+          {/* Metrics Grid */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {metricsData.map((metric, idx) => (
+              <Card key={idx} className="glass border-border">
+                <CardContent className="pt-6">
+                  <div className="flex flex-col items-center text-center space-y-3">
+                    <div className={`p-3 rounded-xl bg-gradient-to-br ${metric.color}`}>
+                      <metric.icon className="w-5 h-5 text-white" />
+                    </div>
+                    <p className="text-sm text-muted-foreground">{metric.label}</p>
+                    <p className="text-2xl font-bold text-foreground">{metric.value}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-8">
+            {/* Correlation Heatmap */}
+            <Card className="glass border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground flex items-center gap-2">
+                  <Activity className="w-5 h-5 text-primary" />
+                  Correlation Discovery
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-4 gap-2 max-w-md mx-auto py-4">
+                  <div className="h-12"></div>
+                  <div className="h-12 flex items-center justify-center text-xs text-muted-foreground font-medium">Phone</div>
+                  <div className="h-12 flex items-center justify-center text-xs text-muted-foreground font-medium">Sleep</div>
+                  <div className="h-12 flex items-center justify-center text-xs text-muted-foreground font-medium">Score</div>
+
+                  <div className="h-12 flex items-center justify-center text-xs text-muted-foreground font-medium">Phone</div>
+                  <div className="h-12 rounded-lg flex items-center justify-center font-bold text-foreground bg-primary/20">1.00</div>
+                  <div
+                    className={`h-12 rounded-lg flex items-center justify-center font-bold ${getCorrelationColor(dataset.correlations.phoneVsSleep)}`}
+                    style={{ backgroundColor: getCorrelationBg(dataset.correlations.phoneVsSleep) }}
+                  >
+                    {dataset.correlations.phoneVsSleep}
+                  </div>
+                  <div
+                    className={`h-12 rounded-lg flex items-center justify-center font-bold ${getCorrelationColor(dataset.correlations.phoneVsScore)}`}
+                    style={{ backgroundColor: getCorrelationBg(dataset.correlations.phoneVsScore) }}
+                  >
+                    {dataset.correlations.phoneVsScore}
+                  </div>
+
+                  <div className="h-12 flex items-center justify-center text-xs text-muted-foreground font-medium">Sleep</div>
+                  <div
+                    className={`h-12 rounded-lg flex items-center justify-center font-bold ${getCorrelationColor(dataset.correlations.phoneVsSleep)}`}
+                    style={{ backgroundColor: getCorrelationBg(dataset.correlations.phoneVsSleep) }}
+                  >
+                    {dataset.correlations.phoneVsSleep}
+                  </div>
+                  <div className="h-12 rounded-lg flex items-center justify-center font-bold text-foreground bg-primary/20">1.00</div>
+                  <div
+                    className={`h-12 rounded-lg flex items-center justify-center font-bold ${getCorrelationColor(dataset.correlations.sleepVsScore)}`}
+                    style={{ backgroundColor: getCorrelationBg(dataset.correlations.sleepVsScore) }}
+                  >
+                    {dataset.correlations.sleepVsScore}
+                  </div>
+
+                  <div className="h-12 flex items-center justify-center text-xs text-muted-foreground font-medium">Score</div>
+                  <div
+                    className={`h-12 rounded-lg flex items-center justify-center font-bold ${getCorrelationColor(dataset.correlations.phoneVsScore)}`}
+                    style={{ backgroundColor: getCorrelationBg(dataset.correlations.phoneVsScore) }}
+                  >
+                    {dataset.correlations.phoneVsScore}
+                  </div>
+                  <div
+                    className={`h-12 rounded-lg flex items-center justify-center font-bold ${getCorrelationColor(dataset.correlations.sleepVsScore)}`}
+                    style={{ backgroundColor: getCorrelationBg(dataset.correlations.sleepVsScore) }}
+                  >
+                    {dataset.correlations.sleepVsScore}
+                  </div>
+                  <div className="h-12 rounded-lg flex items-center justify-center font-bold text-foreground bg-primary/20">1.00</div>
                 </div>
-                <p className="text-sm text-muted-foreground">{metric.label}</p>
-                <p className="text-2xl font-bold text-foreground">{metric.value}</p>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                <p className="text-center text-xs text-muted-foreground mt-4">
+                  Positive values (Green) mean variables increase together.
+                </p>
+              </CardContent>
+            </Card>
 
-      <div className="grid lg:grid-cols-2 gap-8">
-        {/* Correlation Heatmap */}
-        <Card className="glass border-border">
-          <CardHeader>
-            <CardTitle className="text-foreground flex items-center gap-2">
-              <Activity className="w-5 h-5 text-primary" />
-              Correlation Discovery
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-4 gap-2 max-w-md mx-auto py-4">
-              <div className="h-12"></div>
-              <div className="h-12 flex items-center justify-center text-xs text-muted-foreground font-medium">Phone</div>
-              <div className="h-12 flex items-center justify-center text-xs text-muted-foreground font-medium">Sleep</div>
-              <div className="h-12 flex items-center justify-center text-xs text-muted-foreground font-medium">Score</div>
-
-              <div className="h-12 flex items-center justify-center text-xs text-muted-foreground font-medium">Phone</div>
-              <div className="h-12 rounded-lg flex items-center justify-center font-bold text-foreground bg-primary/20">1.00</div>
-              <div
-                className={`h-12 rounded-lg flex items-center justify-center font-bold ${getCorrelationColor(dataset.correlations.phoneVsSleep)}`}
-                style={{ backgroundColor: getCorrelationBg(dataset.correlations.phoneVsSleep) }}
-              >
-                {dataset.correlations.phoneVsSleep}
-              </div>
-              <div
-                className={`h-12 rounded-lg flex items-center justify-center font-bold ${getCorrelationColor(dataset.correlations.phoneVsScore)}`}
-                style={{ backgroundColor: getCorrelationBg(dataset.correlations.phoneVsScore) }}
-              >
-                {dataset.correlations.phoneVsScore}
-              </div>
-
-              <div className="h-12 flex items-center justify-center text-xs text-muted-foreground font-medium">Sleep</div>
-              <div
-                className={`h-12 rounded-lg flex items-center justify-center font-bold ${getCorrelationColor(dataset.correlations.phoneVsSleep)}`}
-                style={{ backgroundColor: getCorrelationBg(dataset.correlations.phoneVsSleep) }}
-              >
-                {dataset.correlations.phoneVsSleep}
-              </div>
-              <div className="h-12 rounded-lg flex items-center justify-center font-bold text-foreground bg-primary/20">1.00</div>
-              <div
-                className={`h-12 rounded-lg flex items-center justify-center font-bold ${getCorrelationColor(dataset.correlations.sleepVsScore)}`}
-                style={{ backgroundColor: getCorrelationBg(dataset.correlations.sleepVsScore) }}
-              >
-                {dataset.correlations.sleepVsScore}
-              </div>
-
-              <div className="h-12 flex items-center justify-center text-xs text-muted-foreground font-medium">Score</div>
-              <div
-                className={`h-12 rounded-lg flex items-center justify-center font-bold ${getCorrelationColor(dataset.correlations.phoneVsScore)}`}
-                style={{ backgroundColor: getCorrelationBg(dataset.correlations.phoneVsScore) }}
-              >
-                {dataset.correlations.phoneVsScore}
-              </div>
-              <div
-                className={`h-12 rounded-lg flex items-center justify-center font-bold ${getCorrelationColor(dataset.correlations.sleepVsScore)}`}
-                style={{ backgroundColor: getCorrelationBg(dataset.correlations.sleepVsScore) }}
-              >
-                {dataset.correlations.sleepVsScore}
-              </div>
-              <div className="h-12 rounded-lg flex items-center justify-center font-bold text-foreground bg-primary/20">1.00</div>
-            </div>
-            <p className="text-center text-xs text-muted-foreground mt-4">
-              Positive values (Green) mean variables increase together.
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Data Table */}
-        <Card className="glass border-border">
-          <CardHeader>
-            <CardTitle className="text-foreground flex items-center gap-2">
-              <FileText className="w-5 h-5 text-primary" />
-              Dataset Preview
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-lg border border-border overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-border hover:bg-secondary/50">
-                    <TableHead className="text-foreground text-xs w-12 text-center">#</TableHead>
-                    <TableHead className="text-foreground text-xs">Phone</TableHead>
-                    <TableHead className="text-foreground text-xs">Sleep</TableHead>
-                    <TableHead className="text-foreground text-xs text-right">Score</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {dataset.data.slice(0, 10).map((row, idx) => (
-                    <TableRow key={idx} className="border-border hover:bg-secondary/30">
-                      <TableCell className="text-xs text-center text-muted-foreground">{idx + 1}</TableCell>
-                      <TableCell className="text-foreground text-xs font-medium">{row.phone_hours}h</TableCell>
-                      <TableCell className="text-foreground text-xs font-medium">{row.sleep_hours}h</TableCell>
-                      <TableCell className="text-right">
-                        <span className={`text-sm font-bold ${row.productive_score >= 7.5 ? "text-emerald-400" :
-                          row.productive_score >= 5 ? "text-amber-400" : "text-red-400"
-                          }`}>
-                          {row.productive_score.toFixed(1)}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            {/* Data Table */}
+            <Card className="glass border-border">
+              <CardHeader>
+                <CardTitle className="text-foreground flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-primary" />
+                  Dataset Preview
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-lg border border-border overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-border hover:bg-secondary/50">
+                        <TableHead className="text-foreground text-xs w-12 text-center">#</TableHead>
+                        <TableHead className="text-foreground text-xs">Phone</TableHead>
+                        <TableHead className="text-foreground text-xs">Sleep</TableHead>
+                        <TableHead className="text-foreground text-xs text-right">Score</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {dataset.data.slice(0, 10).map((row, idx) => (
+                        <TableRow key={idx} className="border-border hover:bg-secondary/30">
+                          <TableCell className="text-xs text-center text-muted-foreground">{idx + 1}</TableCell>
+                          <TableCell className="text-foreground text-xs font-medium">{row.phone_hours}h</TableCell>
+                          <TableCell className="text-foreground text-xs font-medium">{row.sleep_hours}h</TableCell>
+                          <TableCell className="text-right">
+                            <span className={`text-sm font-bold ${row.productive_score >= 7.5 ? "text-emerald-400" :
+                                row.productive_score >= 5 ? "text-amber-400" : "text-red-400"
+                              }`}>
+                              {row.productive_score.toFixed(1)}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      ) : (
+        <div className="text-center p-12 glass rounded-2xl border border-border">
+          <Database className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-20" />
+          <p className="text-muted-foreground">Please upload a CSV to see insights, or wait for the system dataset to load.</p>
+        </div>
+      )}
     </div>
   )
 }
