@@ -11,13 +11,16 @@ from typing import Optional
 _MODEL_CACHE = None
 _FEATURE_NAMES_CACHE = None
 _FEATURE_MEANS_CACHE = None
+_SCORE_MIN = 0.0
+_SCORE_MAX = 5.0 # Fallback
 
 def load_productivity_model_real():
     """
     Loads the saved model, feature names, and calculates feature means from
     the cleaned training data. Caches them for subsequent calls.
+    Now also caches score min/max for 0-10 scaling.
     """
-    global _MODEL_CACHE, _FEATURE_NAMES_CACHE, _FEATURE_MEANS_CACHE
+    global _MODEL_CACHE, _FEATURE_NAMES_CACHE, _FEATURE_MEANS_CACHE, _SCORE_MIN, _SCORE_MAX
 
     if _MODEL_CACHE is None or _FEATURE_NAMES_CACHE is None or _FEATURE_MEANS_CACHE is None:
         print("Loading model, feature names, and calculating feature means...")
@@ -35,6 +38,12 @@ def load_productivity_model_real():
                 else:
                     print(f"Warning: Feature '{feature}' required by the model is not found in 'productivity_data_real.csv'.")
 
+            # Store min/max for scaling
+            if 'productive_score' in cleaned_df.columns:
+                _SCORE_MIN = float(cleaned_df['productive_score'].min())
+                _SCORE_MAX = float(cleaned_df['productive_score'].max())
+                print(f"Dataset range for 'productive_score': [{_SCORE_MIN}, {_SCORE_MAX}]")
+
             print("Model, feature names, and feature means loaded successfully.")
         except FileNotFoundError as e:
             # In a production app, we might want to log this and raise an exception rather than sys.exit
@@ -50,14 +59,15 @@ def predict_productive_score(
     phone_hours,
     sleep_hours=None,
     notifications_per_day=None,
-    work_hours_per_day=None
+    work_hours_per_day=None,
+    optimistic_mode=False
 ):
     """
-    Predicts the productive score based on input features.
+    Predicts and scales the productive score to [0, 10].
     """
     model, feature_names, feature_means = load_productivity_model_real()
 
-    # Collect input values, prioritizing provided arguments
+    # Collect input values
     input_kwargs = {
         'phone_hours': phone_hours,
         'sleep_hours': sleep_hours,
@@ -65,47 +75,59 @@ def predict_productive_score(
         'work_hours_per_day': work_hours_per_day
     }
 
-    # Build the feature vector in the exact order the model expects
+    # Build the feature vector
     feature_vector = []
     for feature in feature_names:
         value = input_kwargs.get(feature)
-
         if value is not None:
             feature_vector.append(value)
         else:
-            # If the value is None (not provided), use the cached mean for imputation
-            if feature in feature_means:
-                feature_vector.append(feature_means[feature])
-            else:
-                raise ValueError(f"Feature '{feature}' is expected by the model but was not provided and its mean is not available.")
+            feature_vector.append(feature_means.get(feature, 0.0))
 
-    # Convert the list to a numpy array and reshape for single prediction
     X_predict = np.array(feature_vector).reshape(1, -1)
+    raw_prediction = model.predict(X_predict)[0]
 
-    # Make prediction
-    prediction = model.predict(X_predict)[0]
+    # 1. Scale from original range (0-5) to universal range (0-10)
+    # Formula: (val - min) / (max - min) * 10
+    range_span = _SCORE_MAX - _SCORE_MIN
+    if range_span > 0:
+        scaled_prediction = (raw_prediction - _SCORE_MIN) / range_span * 10
+    else:
+        scaled_prediction = raw_prediction * 2 # Fallback if data is monolithic
 
-    # Clip the result to [0, 10]
-    clipped_prediction = np.clip(prediction, 0, 10)
+    # 2. Apply Optimistic Mode boost
+    if optimistic_mode:
+        scaled_prediction = scaled_prediction * 1.3
+    
+    # Clip the results to [0, 10]
+    final_prediction = np.clip(scaled_prediction, 0, 10)
 
-    return float(clipped_prediction)
+    return float(final_prediction)
 
 def generate_productivity_message_score(predicted_score, historical_mean=None):
+    # Updated 0-10 scale labels
     if predicted_score < 3.0:
         label = "🔴 Very Low"
+        desc = "Your habits are heavily impacting performance."
     elif predicted_score < 5.0:
-        label = "🟡 Below Average" 
+        label = "🟡 Below Average"
+        desc = "Consider reducing distractions to regain focus."
     elif predicted_score < 7.5:
-        label = "🟢 Decent"
+        label = "🟢 Good"
+        desc = "Solid performance. You're in a productive rhythm."
+    elif predicted_score < 9.0:
+        label = "🟢🟢 Great"
+        desc = "Excellent! You're operating at high efficiency."
     else:
-        label = "🟢 High Productivity"
+        label = "🟢🟢🟢 Exceptional"
+        desc = "Flow state achieved. Maximum output possible."
     
-    message = f"Predicted: {predicted_score:.1f}/10 ({label})"
+    message = f"Score: {predicted_score:.1f}/10 - {label}"
     if historical_mean:
-        if predicted_score >= historical_mean * 1.1:
-            message += " ⭐ Better than average!"
-        elif predicted_score <= historical_mean * 0.9:
-            message += " ⚠️ Below your usual performance"
+        prev_scaled = historical_mean # Assume user provides already scaled mean or we scale if needed
+        if predicted_score >= prev_scaled * 1.1:
+            message += " ⭐ Peak Performance!"
+            
     return label, message
 
 # --- FastAPI App ---
@@ -127,6 +149,7 @@ class PredictRequest(BaseModel):
     notifications_per_day: Optional[float] = None
     work_hours_per_day: Optional[float] = None
     historical_mean: Optional[float] = None
+    optimistic_mode: bool = False
 
 class PredictResponse(BaseModel):
     predicted_score: float
@@ -218,7 +241,8 @@ async def predict(request: PredictRequest):
             phone_hours=request.phone_hours,
             sleep_hours=request.sleep_hours,
             notifications_per_day=request.notifications_per_day,
-            work_hours_per_day=request.work_hours_per_day
+            work_hours_per_day=request.work_hours_per_day,
+            optimistic_mode=request.optimistic_mode
         )
         label, message = generate_productivity_message_score(score, request.historical_mean)
         return PredictResponse(

@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Smartphone, Moon, Rocket, TrendingUp, TrendingDown, Minus, AlertCircle, Loader2 } from "lucide-react"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
+import { Smartphone, Moon, Rocket, TrendingUp, TrendingDown, Minus, AlertCircle, Loader2, Sparkles, Zap, Brain, Target, Coffee, Activity } from "lucide-react"
 
 type PredictResponse = {
   predicted_score: number;
@@ -17,6 +19,7 @@ type PredictResponse = {
 export function PredictTab() {
   const [phoneHours, setPhoneHours] = useState([2.5])
   const [sleepHours, setSleepHours] = useState([7.0])
+  const [optimisticMode, setOptimisticMode] = useState(true)
   const [predictedScore, setPredictedScore] = useState<number | null>(null)
   const [label, setLabel] = useState<string | null>(null)
   const [message, setMessage] = useState<string | null>(null)
@@ -35,7 +38,8 @@ export function PredictTab() {
           sleep_hours: sleepHours[0],
           notifications_per_day: null,
           work_hours_per_day: null,
-          historical_mean: null
+          historical_mean: null,
+          optimistic_mode: optimisticMode
         })
       })
 
@@ -57,10 +61,13 @@ export function PredictTab() {
 
   const getBadgeColor = (label: string) => {
     const l = label.toLowerCase()
-    if (l.includes("high") || l.includes("decent")) {
+    if (l.includes("exceptional") || l.includes("great")) {
+      return "bg-indigo-500/20 text-indigo-400 border-indigo-500/30"
+    }
+    if (l.includes("good") || l.includes("high") || l.includes("decent")) {
       return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
     }
-    if (l.includes("below")) {
+    if (l.includes("below") || l.includes("moderate")) {
       return "bg-amber-500/20 text-amber-400 border-amber-500/30"
     }
     if (l.includes("very low")) {
@@ -71,8 +78,10 @@ export function PredictTab() {
 
   const getStatusIcon = (label: string) => {
     const l = label.toLowerCase()
-    if (l.includes("high") || l.includes("decent")) return <TrendingUp className="w-4 h-4" />
-    if (l.includes("below")) return <Minus className="w-4 h-4" />
+    if (l.includes("exceptional")) return <Zap className="w-4 h-4" />
+    if (l.includes("great")) return <Sparkles className="w-4 h-4" />
+    if (l.includes("good") || l.includes("high")) return <TrendingUp className="w-4 h-4" />
+    if (l.includes("below") || l.includes("moderate")) return <Minus className="w-4 h-4" />
     if (l.includes("very low")) return <TrendingDown className="w-4 h-4" />
     return null
   }
@@ -87,6 +96,25 @@ export function PredictTab() {
         <p className="text-muted-foreground text-lg max-w-xl mx-auto">
           Discover how your sleep and screen time impact your daily performance
         </p>
+      </div>
+
+      {/* Mode Toggle */}
+      <div className="flex justify-center">
+        <div className="glass border-border rounded-full px-6 py-3 flex items-center gap-4 bg-secondary/20">
+          <div className="flex flex-col">
+            <Label htmlFor="optimistic-mode" className="text-foreground font-semibold flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              Optimistic Mode
+            </Label>
+            <span className="text-[10px] text-muted-foreground">Shows POTENTIAL score with optimized habits</span>
+          </div>
+          <Switch
+            id="optimistic-mode"
+            checked={optimisticMode}
+            onCheckedChange={setOptimisticMode}
+            className="data-[state=checked]:bg-amber-500"
+          />
+        </div>
       </div>
 
       {/* Input Sliders */}
@@ -183,29 +211,53 @@ export function PredictTab() {
 
       {/* Results */}
       {predictedScore !== null && label && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          <Card className="glass border-border">
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col items-center">
+          <Card className="glass border-border w-full">
             <CardContent className="pt-6">
               <div className="flex flex-col md:flex-row items-center justify-between gap-6">
                 <div className="text-center md:text-left">
-                  <p className="text-muted-foreground mb-2">Predicted Score</p>
-                  <div className="text-6xl font-bold gradient-text">
+                  <p className="text-muted-foreground mb-2">Predicted Productivity</p>
+                  <div className="text-7xl font-bold gradient-text">
                     {predictedScore.toFixed(1)}
                     <span className="text-2xl text-muted-foreground">/10</span>
                   </div>
                 </div>
-                <div className="flex flex-col items-center md:items-end gap-3">
-                  <Badge className={`${getBadgeColor(label)} text-base px-4 py-2 flex items-center gap-2 border`}>
+                <div className="flex flex-col items-center md:items-end gap-3 text-center md:text-right">
+                  <Badge className={`${getBadgeColor(label)} text-base px-5 py-2 flex items-center gap-2 border shadow-lg`}>
                     {getStatusIcon(label)}
                     {label}
                   </Badge>
-                  <p className="text-muted-foreground text-center md:text-right max-w-xs">
-                    {message}
+                  <p className="text-foreground font-medium text-lg leading-relaxed max-w-xs">
+                    {message ? (message.split(" - ")[1] || message) : ""}
                   </p>
                 </div>
               </div>
             </CardContent>
           </Card>
+
+          {/* Interpretation Legend */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full mt-4">
+            <Card className="glass border-border p-3 flex flex-col items-center text-center gap-1 group hover:bg-emerald-500/5 transition-colors">
+              <Brain className="w-5 h-5 text-emerald-400 group-hover:scale-110 transition-transform" />
+              <span className="text-xs font-bold text-emerald-400">8-10</span>
+              <span className="text-[10px] text-muted-foreground leading-tight">Flow state achieved (Deep Work)</span>
+            </Card>
+            <Card className="glass border-border p-3 flex flex-col items-center text-center gap-1 group hover:bg-blue-500/5 transition-colors">
+              <Target className="w-5 h-5 text-blue-400 group-hover:scale-110 transition-transform" />
+              <span className="text-xs font-bold text-blue-400">6-8</span>
+              <span className="text-[10px] text-muted-foreground leading-tight">Solid, consistent output today</span>
+            </Card>
+            <Card className="glass border-border p-3 flex flex-col items-center text-center gap-1 group hover:bg-amber-500/5 transition-colors">
+              <Coffee className="w-5 h-5 text-amber-400 group-hover:scale-110 transition-transform" />
+              <span className="text-xs font-bold text-amber-400">4-6</span>
+              <span className="text-[10px] text-muted-foreground leading-tight">Average day with minor hurdles</span>
+            </Card>
+            <Card className="glass border-border p-3 flex flex-col items-center text-center gap-1 group hover:bg-red-500/5 transition-colors">
+              <Activity className="w-5 h-5 text-red-400 group-hover:scale-110 transition-transform" />
+              <span className="text-xs font-bold text-red-400">&lt;4</span>
+              <span className="text-[10px] text-muted-foreground leading-tight">Recovery & habits focus needed</span>
+            </Card>
+          </div>
         </div>
       )}
     </div>

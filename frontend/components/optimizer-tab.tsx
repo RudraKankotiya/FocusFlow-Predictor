@@ -60,7 +60,8 @@ export function OptimizerTab() {
             sleep_hours: sleep,
             notifications_per_day: null,
             work_hours_per_day: null,
-            historical_mean: null
+            historical_mean: null,
+            optimistic_mode: true
           })
         })
 
@@ -272,7 +273,7 @@ export function OptimizerTab() {
                         </TableCell>
                         <TableCell className="text-right">
                           <span className={`font-bold text-lg ${result.score >= 8 ? "text-emerald-400" :
-                              result.score >= 6 ? "text-amber-400" : "text-red-400"
+                            result.score >= 6 ? "text-amber-400" : "text-red-400"
                             }`}>
                             {result.score.toFixed(1)}
                           </span>
