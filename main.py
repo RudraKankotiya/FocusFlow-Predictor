@@ -87,13 +87,14 @@ def predict_productive_score(
     X_predict = np.array(feature_vector).reshape(1, -1)
     raw_prediction = model.predict(X_predict)[0]
 
-    # 1. Scale from original range (0-5) to universal range (0-10)
-    # Formula: (val - min) / (max - min) * 10
-    range_span = _SCORE_MAX - _SCORE_MIN
-    if range_span > 0:
-        scaled_prediction = (raw_prediction - _SCORE_MIN) / range_span * 10
-    else:
-        scaled_prediction = raw_prediction * 2 # Fallback if data is monolithic
+    # 1. Scale from original model range (0-5) to universal range (0-10)
+    # The user noted the model was trained on 0-5 data, but UI wants 0-10.
+    # We ignore the dataset's current min/max for scaling the prediction itself 
+    # to avoid double-compression if the dataset already contains 0-10 scores.
+    model_min = 0.0
+    model_max = 5.0 
+    
+    scaled_prediction = (raw_prediction - model_min) / (model_max - model_min) * 10
 
     # 2. Apply Optimistic Mode boost
     if optimistic_mode:
