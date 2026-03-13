@@ -212,7 +212,8 @@ async def debug():
         "dataset_stats": {
             "min": dataset_min,
             "max": dataset_max
-        }
+        },
+        "version": 2
     }
 
 class DatasetStats(BaseModel):
