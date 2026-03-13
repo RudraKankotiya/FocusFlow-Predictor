@@ -6,44 +6,93 @@ import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Smartphone, Moon, Zap, Trophy, Target } from "lucide-react"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Smartphone, Moon, Zap, Trophy, Target, AlertCircle, Loader2 } from "lucide-react"
+
+type PredictResponse = {
+  predicted_score: number;
+  label: string;
+  message: string;
+};
 
 interface OptimizeResult {
-  phoneHours: number
-  sleepHours: number
-  predictedScore: number
-}
-
-interface OptimizeResponse {
-  top5: OptimizeResult[]
-  best: OptimizeResult
+  phone: number
+  sleep: number
+  score: number
 }
 
 export function OptimizerTab() {
   const [maxPhoneHours, setMaxPhoneHours] = useState([4])
   const [targetSleepHours, setTargetSleepHours] = useState([8])
-  const [results, setResults] = useState<OptimizeResponse | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
+  const [results, setResults] = useState<OptimizeResult[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleOptimize = async () => {
-    setIsLoading(true)
+    setLoading(true)
+    setError(null)
+    setResults([])
+
     try {
-      const response = await fetch("/api/predict", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "optimize",
-          maxPhoneHours: maxPhoneHours[0],
-          targetSleepHours: targetSleepHours[0]
+      const phoneRange: number[] = []
+      for (let p = 0.5; p <= maxPhoneHours[0]; p += 0.5) {
+        phoneRange.push(p)
+      }
+
+      const sleepRange: number[] = []
+      for (let s = 6.0; s <= 9.0; s += 0.5) {
+        sleepRange.push(s)
+      }
+
+      const combinations: { phone: number; sleep: number }[] = []
+      for (const p of phoneRange) {
+        for (const s of sleepRange) {
+          combinations.push({ phone: p, sleep: s })
+        }
+      }
+
+      const pool = combinations.map(async ({ phone, sleep }) => {
+        const response = await fetch("https://web-production-098d6.up.railway.app/predict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phone_hours: phone,
+            sleep_hours: sleep,
+            notifications_per_day: null,
+            work_hours_per_day: null,
+            historical_mean: null
+          })
         })
+
+        if (!response.ok) {
+          throw new Error("API request failed")
+        }
+
+        const data: PredictResponse = await response.json()
+        return {
+          phone,
+          sleep,
+          score: data.predicted_score
+        }
       })
-      const data = await response.json()
-      setResults(data)
-    } catch (error) {
-      console.error("Optimization error:", error)
+
+      const allResults = await Promise.all(pool)
+
+      // Sort by score descending and keep top 5
+      const sortedResults = allResults
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5)
+
+      setResults(sortedResults)
+    } catch (err) {
+      console.error("Optimization error:", err)
+      setError("Unable to complete optimization. Check your backend connection.")
+    } finally {
+      setLoading(false)
     }
-    setIsLoading(false)
   }
+
+  const bestResult = results.length > 0 ? results[0] : null
 
   return (
     <div className="space-y-8">
@@ -94,7 +143,7 @@ export function OptimizerTab() {
               <div className="p-2 rounded-lg gradient-primary">
                 <Moon className="w-5 h-5 text-white" />
               </div>
-              Target Sleep Hours
+              Optimal Sleep Target
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -119,42 +168,59 @@ export function OptimizerTab() {
       </div>
 
       {/* Optimize Button */}
-      <div className="flex justify-center">
+      <div className="flex justify-center flex-col items-center gap-6">
         <Button
           onClick={handleOptimize}
-          disabled={isLoading}
+          disabled={loading}
           size="lg"
-          className="gradient-primary text-white px-8 py-6 text-lg font-semibold glow hover:opacity-90 transition-opacity"
+          className="gradient-primary text-white px-8 py-6 text-lg font-semibold glow hover:opacity-90 transition-opacity min-w-[220px]"
         >
-          <Target className="w-5 h-5 mr-2" />
-          {isLoading ? "Optimizing..." : "Find Best Schedule"}
+          {loading ? (
+            <>
+              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+              Optimizing...
+            </>
+          ) : (
+            <>
+              <Target className="w-5 h-5 mr-2" />
+              Find Best Schedule
+            </>
+          )}
         </Button>
+
+        {error && (
+          <Alert variant="destructive" className="max-w-xl glass border-red-500/30">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error</AlertTitle>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
       </div>
 
       {/* Results */}
-      {results && (
+      {results.length > 0 && bestResult && (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
           {/* Best Result Card */}
           <Card className="glass border-border overflow-hidden">
-            <div className="gradient-primary p-6">
+            <div className="gradient-primary p-6 shadow-xl">
               <div className="flex items-center gap-3 mb-4">
-                <Trophy className="w-8 h-8 text-white" />
+                <Trophy className="w-8 h-8 text-white animate-bounce" />
                 <h3 className="text-2xl font-bold text-white">Optimal Schedule Found!</h3>
               </div>
               <div className="flex flex-wrap items-center gap-4 text-white">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full">
                   <Moon className="w-5 h-5" />
-                  <span className="text-lg">Sleep {results.best.sleepHours}h</span>
+                  <span className="text-lg font-medium">Sleep {bestResult.sleep.toFixed(1)}h</span>
                 </div>
-                <span className="text-white/60">+</span>
-                <div className="flex items-center gap-2">
+                <span className="text-white/40 text-2xl font-light">+</span>
+                <div className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full">
                   <Smartphone className="w-5 h-5" />
-                  <span className="text-lg">Phone {results.best.phoneHours}h</span>
+                  <span className="text-lg font-medium">Phone {bestResult.phone.toFixed(1)}h</span>
                 </div>
-                <span className="text-white/60">=</span>
-                <Badge className="bg-white/20 text-white text-xl px-4 py-2 hover:bg-white/30">
-                  <Zap className="w-5 h-5 mr-2" />
-                  {results.best.predictedScore}/10
+                <span className="text-white/40 text-2xl font-light">=</span>
+                <Badge className="bg-white text-primary text-xl px-4 py-2 hover:bg-white shadow-lg border-none">
+                  <Zap className="w-5 h-5 mr-2 fill-primary" />
+                  {bestResult.score.toFixed(1)}/10
                 </Badge>
               </div>
             </div>
@@ -163,7 +229,7 @@ export function OptimizerTab() {
           {/* Top 5 Results Table */}
           <Card className="glass border-border">
             <CardHeader>
-              <CardTitle className="text-foreground">Top 5 Schedule Combinations</CardTitle>
+              <CardTitle className="text-foreground">Top 5 Recommendation Grid</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="rounded-lg border border-border overflow-hidden">
@@ -171,47 +237,46 @@ export function OptimizerTab() {
                   <TableHeader>
                     <TableRow className="border-border hover:bg-secondary/50">
                       <TableHead className="text-foreground">Rank</TableHead>
-                      <TableHead className="text-foreground">Phone Hours</TableHead>
-                      <TableHead className="text-foreground">Sleep Hours</TableHead>
-                      <TableHead className="text-foreground">Predicted Score</TableHead>
+                      <TableHead className="text-foreground text-center">Phone Hours</TableHead>
+                      <TableHead className="text-foreground text-center">Sleep Hours</TableHead>
+                      <TableHead className="text-foreground text-right">Predicted Score</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {results.top5.map((result, idx) => (
-                      <TableRow 
-                        key={idx} 
-                        className={`border-border ${idx === 0 ? "bg-primary/10" : "hover:bg-secondary/30"}`}
+                    {results.map((result, idx) => (
+                      <TableRow
+                        key={idx}
+                        className={`border-border ${idx === 0 ? "bg-emerald-500/10 hover:bg-emerald-500/15" : "hover:bg-secondary/30"}`}
                       >
                         <TableCell>
                           {idx === 0 ? (
-                            <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30">
+                            <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">
                               <Trophy className="w-3 h-3 mr-1" />
-                              1st
+                              Best
                             </Badge>
                           ) : (
-                            <span className="text-muted-foreground font-medium">{idx + 1}</span>
+                            <span className="text-muted-foreground font-medium pl-3">{idx + 1}</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-foreground">
-                          <div className="flex items-center gap-2">
+                        <TableCell className="text-foreground text-center">
+                          <div className="flex items-center justify-center gap-2">
                             <Smartphone className="w-4 h-4 text-muted-foreground" />
-                            {result.phoneHours}h
+                            <span className="font-medium">{result.phone.toFixed(1)}h</span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-foreground">
-                          <div className="flex items-center gap-2">
+                        <TableCell className="text-foreground text-center">
+                          <div className="flex items-center justify-center gap-2">
                             <Moon className="w-4 h-4 text-muted-foreground" />
-                            {result.sleepHours}h
+                            <span className="font-medium">{result.sleep.toFixed(1)}h</span>
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <span className={`font-bold text-lg ${
-                            result.predictedScore >= 8 ? "text-emerald-400" :
-                            result.predictedScore >= 6 ? "text-amber-400" : "text-red-400"
-                          }`}>
-                            {result.predictedScore}
+                        <TableCell className="text-right">
+                          <span className={`font-bold text-lg ${result.score >= 8 ? "text-emerald-400" :
+                              result.score >= 6 ? "text-amber-400" : "text-red-400"
+                            }`}>
+                            {result.score.toFixed(1)}
                           </span>
-                          <span className="text-muted-foreground">/10</span>
+                          <span className="text-muted-foreground text-sm ml-1">/10</span>
                         </TableCell>
                       </TableRow>
                     ))}
