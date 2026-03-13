@@ -30,7 +30,7 @@ export function PredictTab() {
     setLoading(true)
     setError(null)
     try {
-      const response = await fetch("https://web-production-098d6.up.railway.app/predict", {
+      const response = await fetch("/api/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
